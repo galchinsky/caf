@@ -1,0 +1,53 @@
+function [f, grad] = fit2(X, n, m, c, layer, channel, net)
+fprintf('.');
+
+img = single(reshape(X, n, m, c));
+
+res = net.forward({img});
+res = res{1};
+
+
+new_layer = net.blob_vec(channel).get_data();
+f = sum((new_layer(:) - layer(:)).^2)/(sum(layer(:)).^2);
+
+b = 2;
+reg = @(color) sum(sum(((color(2:end, 1:end-1) - color(1:end-1,1:end-1)).^2 + (color(1:end-1, 2:end) - color(1:end-1,1:end-1)).^2)));
+
+reg_grad = @(color) -(4 * color(1:end-1,1:end-1) - 2 * color(2:end, 1:end-1) - 2 * color(1:end-1, 2:end));
+
+
+r_ = img(:, :, 1);
+g_ = img(:, :, 2);
+b_ = img(:, :, 3);
+
+lambda = 0*0.0000000000000001;
+regul = lambda * reg(r_) + lambda * reg(g_) + lambda * reg(g_);
+
+f = f + regul;
+
+%net.blob_vec(channel).set_data(layer);
+%net.blob_vec(channel).set_diff(new_layer - layer);
+
+%net.backward({res});
+%net.backward_prefilled();
+net.blob_vec(channel).set_diff(new_layer - layer);
+net.backward_from_to_f(channel-1, 0);
+
+grad = net.blob_vec(1).get_diff();
+
+grad_reg_ext = grad * 0;
+grad_reg_ext(1:end-1, 1:end-1, 1) = lambda * reg_grad(r_);
+grad_reg_ext(1:end-1, 1:end-1, 2) = lambda * reg_grad(g_);
+grad_reg_ext(1:end-1, 1:end-1, 3) = lambda * reg_grad(b_);
+grad_reg_ext(2:end, 2:end, 1) = lambda * reg_grad(r_);
+grad_reg_ext(2:end, 2:end, 2) = lambda * reg_grad(g_);
+grad_reg_ext(2:end, 2:end, 3) = lambda * reg_grad(b_);
+
+
+grad = grad + grad_reg_ext;
+
+img = single(reshape(X, n, m, c));
+
+show_blob(img)
+
+end
